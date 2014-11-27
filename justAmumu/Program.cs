@@ -11,6 +11,25 @@ using System.Collections.Generic;
 using System.Threading;
 #endregion
 
+/*
+ *      justAmumu 2Release
+ *          
+ *          Added:
+ *              -ManaManager for Jungle and Lane Clear
+ *              -Zhonya's with health config
+ *              -PotionManager
+ *              -Ignite
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ */
+
+
 namespace SF_Template
 {
 
@@ -33,6 +52,12 @@ namespace SF_Template
 
         private static Items.Item DFG;
         private static Items.Item RDO;
+        private static Items.Item ZHOItem;
+        private static Items.Item HPPot;
+        private static Items.Item MANAPot;
+        private static Items.Item BISCUT;
+
+        private static SpellSlot IgniteSlot;
 
         public static Obj_AI_Hero Player { get { return ObjectManager.Player; } } 
 
@@ -49,6 +74,7 @@ namespace SF_Template
 
             if (ObjectManager.Player.BaseSkinName != Champion) return;
 
+            //Spells
             Q = new Spell(SpellSlot.Q, 1100); 
             W = new Spell(SpellSlot.W, 300); 
             E = new Spell(SpellSlot.E, 350); 
@@ -60,11 +86,16 @@ namespace SF_Template
             SpellList.Add(W);
             SpellList.Add(E);
             SpellList.Add(R);
+            IgniteSlot = Player.GetSpellSlot("SummonerDot");
 
             DFG = new Items.Item(3128, 490f);
             RDO = new Items.Item(3143, 500f);
+            ZHOItem = new Items.Item(3157, 1f);
+            HPPot = new Items.Item(2003, 1f);
+            MANAPot = new Items.Item(2004, 1f);
+            BISCUT = new Items.Item(2010, 1f);
 
-            //Creating a menu
+            //Menu
             Config = new Menu("justAmumu", "String_Name", true);
 
             //Ts 
@@ -81,7 +112,8 @@ namespace SF_Template
             Config.SubMenu("Combo").AddItem(new MenuItem("UseQCombo", "Use Q")).SetValue(true); 
             Config.SubMenu("Combo").AddItem(new MenuItem("UseWCombo", "Use W")).SetValue(true); 
             Config.SubMenu("Combo").AddItem(new MenuItem("UseECombo", "Use E")).SetValue(true); 
-            Config.SubMenu("Combo").AddItem(new MenuItem("UseRCombo", "Use R")).SetValue(true);  
+            Config.SubMenu("Combo").AddItem(new MenuItem("UseRCombo", "Use R")).SetValue(true);
+            Config.SubMenu("Combo").AddItem(new MenuItem("UseIgnite", "Use Ignite")).SetValue(true);
             Config.SubMenu("Combo").AddItem(new MenuItem("ActiveCombo", "Combo!").SetValue(new KeyBind(32, KeyBindType.Press)));
   
             //Jungle Clear
@@ -90,6 +122,7 @@ namespace SF_Template
             Config.SubMenu("JungleClear").AddItem(new MenuItem("JungleW", "Use W")).SetValue(true);
             Config.SubMenu("JungleClear").AddItem(new MenuItem("JungleE", "Use E")).SetValue(true);
             Config.SubMenu("JungleClear").AddItem(new MenuItem("JungleKey", "Bind").SetValue(new KeyBind(86, KeyBindType.Press)));
+            Config.SubMenu("JungleClear").AddItem(new MenuItem("JungleMin", "Min Mana")).SetValue(new Slider(20, 0, 100));
             
             //Jungle Clear
             Config.AddSubMenu(new Menu("Lane Clear", "LaneClear"));
@@ -97,6 +130,8 @@ namespace SF_Template
             Config.SubMenu("LaneClear").AddItem(new MenuItem("ClearW", "Use W")).SetValue(true);
             Config.SubMenu("LaneClear").AddItem(new MenuItem("ClearE", "Use E")).SetValue(true);
             Config.SubMenu("LaneClear").AddItem(new MenuItem("LaneKey", "Bind").SetValue(new KeyBind(86, KeyBindType.Press)));
+            Config.SubMenu("LaneClear").AddItem(new MenuItem("ClearMin", "Min Mana")).SetValue(new Slider(20, 0, 100));
+            
             //KS
             Config.AddSubMenu(new Menu("KS", "KS"));
             Config.SubMenu("KS").AddItem(new MenuItem("KSW", "KS with Q")).SetValue(true);
@@ -111,6 +146,12 @@ namespace SF_Template
             Config.SubMenu("Items").AddItem(new MenuItem("UseItems", "Use Items")).SetValue(true);
             Config.SubMenu("Items").AddItem(new MenuItem("DFGu", "DFG")).SetValue(true);
             Config.SubMenu("Items").AddItem(new MenuItem("RDOu", "RDO")).SetValue(true); 
+            Config.SubMenu("Items").AddItem(new MenuItem("ZHOu", "Zhonya's")).SetValue(true);
+            Config.SubMenu("Items").AddItem(new MenuItem("ZHOMin", "Min HP Zhonya's")).SetValue(new Slider(20,0,100));
+            Config.SubMenu("Items").AddItem(new MenuItem("HpPot", "HP Potion")).SetValue(true);
+            Config.SubMenu("Items").AddItem(new MenuItem("HpPotMin", "Min HP Potion")).SetValue(new Slider(20, 0, 100));
+            Config.SubMenu("Items").AddItem(new MenuItem("ManaPot", "Mana Potion")).SetValue(true);
+            Config.SubMenu("Items").AddItem(new MenuItem("ManaPotMin", "Min Mana Potion")).SetValue(new Slider(20, 0, 100));
 
             //Range Drawings
             Config.AddSubMenu(new Menu("Drawings", "Drawings"));
@@ -121,7 +162,7 @@ namespace SF_Template
 
 
             Config.AddToMainMenu();
-            Game.PrintChat("justAmumu Loaded # MixX");
+            Game.PrintChat("justAmumu [2Release] Loaded # MixX");
             Game.OnGameUpdate += OnGameUpdate;
             Drawing.OnDraw += OnDraw;
         }
@@ -147,6 +188,13 @@ namespace SF_Template
                 KSW();
             }
 
+            if (Config.Item("ZHOu").GetValue<bool>())
+            {
+                Zhonya();
+            }
+
+            PotionManager();
+            
         }
         
         static void Combo()
@@ -182,6 +230,10 @@ namespace SF_Template
                 R.Cast(target, Config.Item("PUse").GetValue<bool>() , true); 
             }
 
+            if (target.Health <= (50 + Player.Level * 20) && Player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready)
+            {
+                Player.SummonerSpellbook.CastSpell(IgniteSlot, target);
+            }
             //Items using
             if (Config.Item("UseItems").GetValue<bool>()) 
             {
@@ -212,36 +264,9 @@ namespace SF_Template
             if (!mobs.Any()) return;
 
             var mob = mobs.First();
-
-            if (Config.Item("JungleQ").GetValue<bool>())
+            if ((Player.Mana / Player.MaxMana) * 100 >= Config.Item("JungleMin").GetValue<Slider>().Value)
             {
-                var prediction = Q.GetPrediction(mob);
-                if (prediction.Hitchance >= HitChance.VeryHigh)
-                {
-                    Q.Cast(prediction.CastPosition, Config.Item("PUse").GetValue<bool>());
-
-                }
-            }
-            if (Config.Item("JungleW").GetValue<bool>())
-            {
-                if (Player.Distance(mob) <= W.Range)
-                {
-                    W.Cast(Player, Config.Item("PUse").GetValue<bool>());
-                }
-            }
-            if (Config.Item("JungleE").GetValue<bool>())
-            {
-                E.Cast(mob, Config.Item("PUse").GetValue<bool>());
-            }
-        }
-        private static void LaneClear()
-        {
-                var mobs = MinionManager.GetMinions(Player.ServerPosition, Q.Range, MinionTypes.All, MinionTeam.Enemy, MinionOrderTypes.Health);
-                if (!mobs.Any()) return;
-
-                var mob = mobs.First();
-
-                if (Config.Item("ClearQ").GetValue<bool>())
+                if (Config.Item("JungleQ").GetValue<bool>())
                 {
                     var prediction = Q.GetPrediction(mob);
                     if (prediction.Hitchance >= HitChance.VeryHigh)
@@ -250,16 +275,48 @@ namespace SF_Template
 
                     }
                 }
-                if (Config.Item("ClearW").GetValue<bool>())
+                if (Config.Item("JungleW").GetValue<bool>())
                 {
                     if (Player.Distance(mob) <= W.Range)
                     {
                         W.Cast(Player, Config.Item("PUse").GetValue<bool>());
                     }
                 }
-                if (Config.Item("ClearE").GetValue<bool>())
+                if (Config.Item("JungleE").GetValue<bool>())
                 {
                     E.Cast(mob, Config.Item("PUse").GetValue<bool>());
+                }
+            }
+                
+        }
+        private static void LaneClear()
+        {
+            var mobs = MinionManager.GetMinions(Player.ServerPosition, Q.Range, MinionTypes.All, MinionTeam.Enemy, MinionOrderTypes.Health);
+            if (!mobs.Any()) return;
+            var mob = mobs.First();
+
+                if ((Player.Mana / Player.MaxMana) * 100 >= Config.Item("ClearMin").GetValue<Slider>().Value)
+                {
+                    if (Config.Item("ClearQ").GetValue<bool>())
+                    {
+                        var prediction = Q.GetPrediction(mob);
+                        if (prediction.Hitchance >= HitChance.VeryHigh)
+                        {
+                            Q.Cast(prediction.CastPosition, Config.Item("PUse").GetValue<bool>());
+
+                        }
+                    }
+                    if (Config.Item("ClearW").GetValue<bool>())
+                    {
+                        if (Player.Distance(mob) <= W.Range)
+                        {
+                            W.Cast(Player, Config.Item("PUse").GetValue<bool>());
+                        }
+                    }
+                    if (Config.Item("ClearE").GetValue<bool>())
+                    {
+                        E.Cast(mob, Config.Item("PUse").GetValue<bool>());
+                    }
                 }
         }
 
@@ -292,6 +349,27 @@ namespace SF_Template
             }
         }
 
+        //Items
+        private static void Zhonya()
+        {
+            if ((Player.Health / Player.MaxHealth) * 100 <= Config.Item("ZHOMin").GetValue<Slider>().Value)
+            {
+                ZHOItem.Cast();
+            }
+        }
+
+        private static void PotionManager()
+        {
+            if ((Player.Health / Player.MaxHealth) * 100 <= Config.Item("HpPotMin").GetValue<Slider>().Value && Config.Item("HpPot").GetValue<bool>())
+            {
+                BISCUT.Cast();
+                HPPot.Cast();
+            }
+            if ((Player.Health / Player.MaxHealth) * 100 <= Config.Item("ManaPotMin").GetValue<Slider>().Value && Config.Item("ManaPot").GetValue<bool>())
+            {
+                MANAPot.Cast();
+            }       
+        }
 
         //Damage
         private static float GetQDamage(Obj_AI_Base enemy) 
